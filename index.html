@@ -198,7 +198,7 @@
                 card.innerHTML = `
                     <div class="preview-container">
                         <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
-                        <dotlottie-player background="transparent" speed="1" loop class="emoji-lottie"></dotlottie-player>
+                        <dotlottie-player background="transparent" speed="1" loop autoplay class="emoji-lottie"></dotlottie-player>
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
                     <a href="${animPath}" download="emoji_${globalIndex}.${item.ext}" class="download-btn">Скачать ${item.ext.toUpperCase()}</a>
@@ -208,24 +208,36 @@
                 const player = card.querySelector('.emoji-lottie');
                 let loaded = false;
 
+                // Если анимация не смогла загрузиться — не оставляем пустой
+                // прозрачный квадрат, а возвращаем статичную картинку.
+                player.addEventListener('error', () => {
+                    player.classList.remove('visible');
+                    img.style.opacity = '1';
+                });
+
                 // Анимация загружается только при первом наведении —
                 // это ключевое отличие: страница не пытается скачать
                 // тысячи Lottie-файлов сразу при открытии.
                 card.addEventListener('mouseenter', () => {
-                    if (!loaded) {
-                        loaded = true;
-                        try {
-                            player.load(animPath);
-                        } catch (e) {
-                            console.error('Не удалось загрузить анимацию:', animPath, e);
-                        }
-                    }
                     img.style.opacity = '0';
                     player.classList.add('visible');
-                    try {
-                        player.play();
-                    } catch (e) {
-                        console.error('Ошибка воспроизведения:', e);
+
+                    if (!loaded) {
+                        loaded = true;
+                        // .load() асинхронный: он сам скачает и распарсит
+                        // анимацию, а благодаря атрибуту autoplay плеер
+                        // запустится сам, когда данные реально будут готовы —
+                        // без гонки состояний с ручным .play().
+                        player.load(animPath).catch(e => {
+                            console.error('Не удалось загрузить анимацию:', animPath, e);
+                        });
+                    } else {
+                        // Анимация уже загружена раньше — можно играть сразу.
+                        try {
+                            player.play();
+                        } catch (e) {
+                            console.error('Ошибка воспроизведения:', e);
+                        }
                     }
                 });
 
