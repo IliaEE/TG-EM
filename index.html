@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telegram Animated Emojis Library</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+    <script src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.js"></script>
     <style>
         :root {
             --tg-blue: #2481cc;
@@ -62,7 +62,7 @@
             left: 0;
             z-index: 2;
             opacity: 1;
-            transition: opacity 0.15s ease-in-out;
+            transition: opacity 0.1s ease-in-out;
             pointer-events: none;
         }
         
@@ -73,12 +73,6 @@
             top: 0;
             left: 0;
             z-index: 1;
-        }
-
-        /* Гарантируем, что SVG-анимация займет всё пространство контейнера */
-        .emoji-lottie svg {
-            width: 100% !important;
-            height: 100% !important;
         }
         
         .emoji-number {
@@ -170,48 +164,36 @@
             pageItems.forEach((item, index) => {
                 const globalIndex = startIndex + index + 1;
                 
-                // КРИТИЧЕСКИЙ ФИКС: Безопасное кодирование путей для браузера (экранируем пробелы и знак @)
                 const safePath = item.path.split('/').map(p => encodeURIComponent(p)).join('/');
-                const jsonPath = `${safePath}/${encodeURIComponent(item.id)}.json`;
+                const animPath = `${safePath}/${encodeURIComponent(item.id)}.${item.ext}`;
                 const pngPath = `${safePath}/${encodeURIComponent(item.id)}.png`;
 
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="preview-container">
-                        <div class="emoji-lottie"></div>
+                        <dotlottie-player src="${animPath}" background="transparent" speed="1" loop class="emoji-lottie"></dotlottie-player>
                         <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
-                    <a href="${jsonPath}" download="emoji_${globalIndex}.json" class="download-btn">Скачать Lottie</a>
+                    <a href="${animPath}" download="emoji_${globalIndex}.${item.ext}" class="download-btn">Скачать ${item.ext.toUpperCase()}</a>
                 `;
 
                 const img = card.querySelector('.emoji-img');
-                const lottieContainer = card.querySelector('.emoji-lottie');
-                let anim = null;
+                const player = card.querySelector('.emoji-lottie');
 
-                // Умная отложенная загрузка анимации (Lazy-loading Lottie)
+                // Управление воспроизведением dotLottie
                 card.addEventListener('mouseenter', () => {
-                    img.style.opacity = '0';
-                    
-                    if (!anim) {
-                        // Инициализируем плеер только при первом наведении на карточку
-                        anim = lottie.loadAnimation({
-                            container: lottieContainer,
-                            renderer: 'svg',
-                            loop: true,
-                            autoplay: true,
-                            path: jsonPath
-                        });
-                    } else {
-                        anim.play();
+                    if (img && player) {
+                        img.style.opacity = '0';
+                        player.play();
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
-                    img.style.opacity = '1';
-                    if (anim) {
-                        anim.pause();
+                    if (img && player) {
+                        player.pause();
+                        img.style.opacity = '1';
                     }
                 });
 
