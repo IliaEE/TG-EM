@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telegram Animated Emojis Library</title>
-    <script src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.js"></script>
     <style>
         :root {
             --tg-blue: #2481cc;
@@ -129,12 +128,13 @@
     <div class="container">
         <header>
             <h1>Telegram Animated Emojis Library</h1>
-            <p id="totalCount">Загрузка...</p>
+            <p id="totalCount">Загрузка интерфейса...</p>
         </header>
         <div class="grid" id="emojiGrid"></div>
         <div class="pagination" id="paginationControls"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@dotlottie/player-component@1.3.1/dist/dotlottie-player.js"></script>
     <script src="emojis.js"></script>
     <script>
         const ITEMS_PER_PAGE = 60;
@@ -146,7 +146,7 @@
 
         function initLibrary() {
             if (typeof emojiList === 'undefined' || emojiList.length === 0) {
-                totalCountEl.innerText = "Список пуст. Проверьте папки.";
+                totalCountEl.innerText = "База данных не найдена или пуста.";
                 return;
             }
             totalCountEl.innerText = `Всего: ${emojiList.length} эмодзи • Наведите для анимации`;
@@ -182,17 +182,22 @@
                 const img = card.querySelector('.emoji-img');
                 const player = card.querySelector('.emoji-lottie');
 
-                // Управление воспроизведением dotLottie
                 card.addEventListener('mouseenter', () => {
                     if (img && player) {
                         img.style.opacity = '0';
-                        player.play();
+                        try {
+                            player.play();
+                        } catch (e) {
+                            console.error("Ошибка воспроизведения:", e);
+                        }
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
                     if (img && player) {
-                        player.pause();
+                        try {
+                            player.pause();
+                        } catch (e) {}
                         img.style.opacity = '1';
                     }
                 });
@@ -236,7 +241,8 @@
             paginationControls.appendChild(nextBtn);
         }
 
-        document.addEventListener("DOMContentLoaded", initLibrary);
+        // Запуск гарантирован, так как все элементы DOM уже созданы выше
+        initLibrary();
     </script>
 </body>
 </html>
