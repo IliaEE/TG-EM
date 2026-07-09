@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telegram Animated Emojis Library</title>
-    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <style>
         :root {
             --tg-blue: #2481cc;
@@ -47,7 +47,6 @@
             box-shadow: 0 6px 16px rgba(0,0,0,0.08);
         }
         
-        /* Контейнер-сэндвич: плеер снизу, картинка сверху */
         .preview-container {
             width: 100px;
             height: 100px;
@@ -61,10 +60,10 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 2; /* Картинка перекрывает плеер */
+            z-index: 2;
             opacity: 1;
             transition: opacity 0.15s ease-in-out;
-            pointer-events: none; /* Чтобы ховер без проблем долетал до карточки */
+            pointer-events: none;
         }
         
         .emoji-lottie {
@@ -73,8 +72,13 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 1; /* Плеер под картинкой */
-            display: block; /* Больше никакого display: none */
+            z-index: 1;
+        }
+
+        /* Гарантируем, что SVG-анимация займет всё пространство контейнера */
+        .emoji-lottie svg {
+            width: 100% !important;
+            height: 100% !important;
         }
         
         .emoji-number {
@@ -165,14 +169,17 @@
 
             pageItems.forEach((item, index) => {
                 const globalIndex = startIndex + index + 1;
-                const jsonPath = `${item.path}/${item.id}.json`;
-                const pngPath = `${item.path}/${item.id}.png`;
+                
+                // КРИТИЧЕСКИЙ ФИКС: Безопасное кодирование путей для браузера (экранируем пробелы и знак @)
+                const safePath = item.path.split('/').map(p => encodeURIComponent(p)).join('/');
+                const jsonPath = `${safePath}/${encodeURIComponent(item.id)}.json`;
+                const pngPath = `${safePath}/${encodeURIComponent(item.id)}.png`;
 
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="preview-container">
-                        <lottie-player src="${jsonPath}" background="transparent" speed="1" loop class="emoji-lottie"></lottie-player>
+                        <div class="emoji-lottie"></div>
                         <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
@@ -180,20 +187,31 @@
                 `;
 
                 const img = card.querySelector('.emoji-img');
-                const player = card.querySelector('.emoji-lottie');
+                const lottieContainer = card.querySelector('.emoji-lottie');
+                let anim = null;
 
-                // Логика переключения через прозрачность
+                // Умная отложенная загрузка анимации (Lazy-loading Lottie)
                 card.addEventListener('mouseenter', () => {
-                    if (img && player) {
-                        img.style.opacity = '0'; // Скрываем PNG плавным переходом
-                        player.play();          // Запускаем Lottie
+                    img.style.opacity = '0';
+                    
+                    if (!anim) {
+                        // Инициализируем плеер только при первом наведении на карточку
+                        anim = lottie.loadAnimation({
+                            container: lottieContainer,
+                            renderer: 'svg',
+                            loop: true,
+                            autoplay: true,
+                            path: jsonPath
+                        });
+                    } else {
+                        anim.play();
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
-                    if (img && player) {
-                        player.pause();         // Ставим на паузу Lottie
-                        img.style.opacity = '1';  // Возвращаем PNG
+                    img.style.opacity = '1';
+                    if (anim) {
+                        anim.pause();
                     }
                 });
 
