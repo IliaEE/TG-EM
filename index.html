@@ -22,14 +22,14 @@
         header { text-align: center; margin-bottom: 30px; }
         header h1 { margin: 0 0 10px 0; font-size: 28px; color: #212121; }
         .container { max-width: 1200px; margin: 0 auto; }
-        
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 20px;
             margin-bottom: 40px;
         }
-        
+
         .card {
             background: var(--card-bg);
             border-radius: 14px;
@@ -40,18 +40,18 @@
             align-items: center;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-        
+
         .card:hover {
             transform: translateY(-4px);
             box-shadow: 0 6px 16px rgba(0,0,0,0.08);
         }
-        
+
         .preview-container {
             width: 100px;
             height: 100px;
             position: relative;
         }
-        
+
         .emoji-img {
             width: 100%;
             height: 100%;
@@ -64,7 +64,7 @@
             transition: opacity 0.1s ease-in-out;
             pointer-events: none;
         }
-        
+
         .emoji-lottie {
             width: 100%;
             height: 100%;
@@ -72,8 +72,12 @@
             top: 0;
             left: 0;
             z-index: 1;
+            opacity: 0;
+            transition: opacity 0.1s ease-in-out;
         }
-        
+
+        .emoji-lottie.visible { opacity: 1; }
+
         .emoji-number {
             font-size: 13px;
             font-weight: 500;
@@ -81,7 +85,7 @@
             margin: 14px 0;
             text-align: center;
         }
-        
+
         .download-btn {
             background-color: var(--tg-blue);
             color: white;
@@ -96,9 +100,9 @@
             box-sizing: border-box;
             transition: background-color 0.15s;
         }
-        
+
         .download-btn:hover { background-color: var(--tg-hover-blue); }
-        
+
         .pagination {
             display: flex;
             justify-content: center;
@@ -107,7 +111,7 @@
             margin-top: 20px;
             flex-wrap: wrap;
         }
-        
+
         .page-btn {
             background: var(--card-bg);
             border: 1px solid #dcdfe6;
@@ -118,10 +122,22 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
+
         .page-btn:hover:not(:disabled) { border-color: var(--tg-blue); color: var(--tg-blue); }
         .page-btn.active { background-color: var(--tg-blue); border-color: var(--tg-blue); color: white; }
         .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .error-banner {
+            max-width: 700px;
+            margin: 0 auto 20px auto;
+            padding: 14px 18px;
+            background: #fdecea;
+            border: 1px solid #f5c2c0;
+            color: #611a15;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -130,12 +146,15 @@
             <h1>Telegram Animated Emojis Library</h1>
             <p id="totalCount">Загрузка интерфейса...</p>
         </header>
+        <div class="error-banner" id="errorBanner"></div>
         <div class="grid" id="emojiGrid"></div>
         <div class="pagination" id="paginationControls"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@dotlottie/player-component@1.3.1/dist/dotlottie-player.js"></script>
-    <script src="emojis.js"></script>
+    <script src="emojis.js"
+        onerror="document.getElementById('errorBanner').style.display='block'; document.getElementById('errorBanner').innerText='Не удалось загрузить emojis.js (404). Проверьте, что файл лежит рядом с index.html в репозитории.'; document.getElementById('totalCount').innerText='Ошибка загрузки базы данных.';">
+    </script>
     <script>
         const ITEMS_PER_PAGE = 60;
         let currentPage = 1;
@@ -143,6 +162,12 @@
         const grid = document.getElementById('emojiGrid');
         const paginationControls = document.getElementById('paginationControls');
         const totalCountEl = document.getElementById('totalCount');
+        const errorBanner = document.getElementById('errorBanner');
+
+        function showError(msg) {
+            errorBanner.style.display = 'block';
+            errorBanner.innerText = msg;
+        }
 
         function initLibrary() {
             if (typeof emojiList === 'undefined' || emojiList.length === 0) {
@@ -163,7 +188,7 @@
 
             pageItems.forEach((item, index) => {
                 const globalIndex = startIndex + index + 1;
-                
+
                 const safePath = item.path.split('/').map(p => encodeURIComponent(p)).join('/');
                 const animPath = `${safePath}/${encodeURIComponent(item.id)}.${item.ext}`;
                 const pngPath = `${safePath}/${encodeURIComponent(item.id)}.png`;
@@ -172,8 +197,8 @@
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="preview-container">
-                        <dotlottie-player src="${animPath}" background="transparent" speed="1" loop class="emoji-lottie"></dotlottie-player>
                         <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
+                        <dotlottie-player background="transparent" speed="1" loop class="emoji-lottie"></dotlottie-player>
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
                     <a href="${animPath}" download="emoji_${globalIndex}.${item.ext}" class="download-btn">Скачать ${item.ext.toUpperCase()}</a>
@@ -181,25 +206,35 @@
 
                 const img = card.querySelector('.emoji-img');
                 const player = card.querySelector('.emoji-lottie');
+                let loaded = false;
 
+                // Анимация загружается только при первом наведении —
+                // это ключевое отличие: страница не пытается скачать
+                // тысячи Lottie-файлов сразу при открытии.
                 card.addEventListener('mouseenter', () => {
-                    if (img && player) {
-                        img.style.opacity = '0';
+                    if (!loaded) {
+                        loaded = true;
                         try {
-                            player.play();
+                            player.load(animPath);
                         } catch (e) {
-                            console.error("Ошибка воспроизведения:", e);
+                            console.error('Не удалось загрузить анимацию:', animPath, e);
                         }
+                    }
+                    img.style.opacity = '0';
+                    player.classList.add('visible');
+                    try {
+                        player.play();
+                    } catch (e) {
+                        console.error('Ошибка воспроизведения:', e);
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
-                    if (img && player) {
-                        try {
-                            player.pause();
-                        } catch (e) {}
-                        img.style.opacity = '1';
-                    }
+                    try {
+                        player.pause();
+                    } catch (e) {}
+                    player.classList.remove('visible');
+                    img.style.opacity = '1';
                 });
 
                 grid.appendChild(card);
@@ -241,7 +276,10 @@
             paginationControls.appendChild(nextBtn);
         }
 
-        // Запуск гарантирован, так как все элементы DOM уже созданы выше
+        if (typeof customElements !== 'undefined' && !customElements.get('dotlottie-player')) {
+            showError('Компонент dotlottie-player не зарегистрировался (не загрузился CDN-скрипт). Статичные картинки должны отображаться, но анимация по наведению работать не будет.');
+        }
+
         initLibrary();
     </script>
 </body>
