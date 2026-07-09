@@ -47,26 +47,34 @@
             box-shadow: 0 6px 16px rgba(0,0,0,0.08);
         }
         
+        /* Контейнер-сэндвич: плеер снизу, картинка сверху */
         .preview-container {
             width: 100px;
             height: 100px;
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         
         .emoji-img {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2; /* Картинка перекрывает плеер */
+            opacity: 1;
+            transition: opacity 0.15s ease-in-out;
+            pointer-events: none; /* Чтобы ховер без проблем долетал до карточки */
         }
         
         .emoji-lottie {
             width: 100%;
             height: 100%;
-            display: none; /* Скрыт по умолчанию */
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1; /* Плеер под картинкой */
+            display: block; /* Больше никакого display: none */
         }
         
         .emoji-number {
@@ -156,7 +164,7 @@
             const pageItems = emojiList.slice(startIndex, endIndex);
 
             pageItems.forEach((item, index) => {
-                const globalIndex = startIndex + index + 1; // Красивый порядковый номер
+                const globalIndex = startIndex + index + 1;
                 const jsonPath = `${item.path}/${item.id}.json`;
                 const pngPath = `${item.path}/${item.id}.png`;
 
@@ -164,30 +172,28 @@
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="preview-container">
-                        <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
                         <lottie-player src="${jsonPath}" background="transparent" speed="1" loop class="emoji-lottie"></lottie-player>
+                        <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
                     <a href="${jsonPath}" download="emoji_${globalIndex}.json" class="download-btn">Скачать Lottie</a>
                 `;
 
-                // Управление анимацией при наведении через JS
                 const img = card.querySelector('.emoji-img');
                 const player = card.querySelector('.emoji-lottie');
 
+                // Логика переключения через прозрачность
                 card.addEventListener('mouseenter', () => {
                     if (img && player) {
-                        img.style.display = 'none';
-                        player.style.display = 'block';
-                        player.play();
+                        img.style.opacity = '0'; // Скрываем PNG плавным переходом
+                        player.play();          // Запускаем Lottie
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
                     if (img && player) {
-                        player.pause();
-                        player.style.display = 'none';
-                        img.style.display = 'block';
+                        player.pause();         // Ставим на паузу Lottie
+                        img.style.opacity = '1';  // Возвращаем PNG
                     }
                 });
 
