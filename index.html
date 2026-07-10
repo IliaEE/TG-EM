@@ -57,26 +57,24 @@
             height: 100%;
             object-fit: contain;
             position: absolute;
-            top: 0;
-            left: 0;
+            inset: 0;
             z-index: 2;
             opacity: 1;
-            transition: opacity 0.1s ease-in-out;
+            transition: opacity 0.12s ease-in-out;
             pointer-events: none;
         }
 
-        .emoji-lottie {
+        .emoji-canvas {
             width: 100%;
             height: 100%;
             position: absolute;
-            top: 0;
-            left: 0;
+            inset: 0;
             z-index: 1;
             opacity: 0;
-            transition: opacity 0.1s ease-in-out;
+            transition: opacity 0.12s ease-in-out;
         }
 
-        .emoji-lottie.visible { opacity: 1; }
+        .emoji-canvas.visible { opacity: 1; }
 
         .emoji-number {
             font-size: 13px;
@@ -151,22 +149,35 @@
         <div class="pagination" id="paginationControls"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@dotlottie/player-component@1.3.1/dist/dotlottie-player.js"></script>
     <script src="emojis.js"
         onerror="document.getElementById('errorBanner').style.display='block'; document.getElementById('errorBanner').innerText='Не удалось загрузить emojis.js (404). Проверьте, что файл лежит рядом с index.html в репозитории.'; document.getElementById('totalCount').innerText='Ошибка загрузки базы данных.';">
     </script>
+
     <script>
+    (async () => {
         const ITEMS_PER_PAGE = 60;
         let currentPage = 1;
+        let DotLottie = null;
 
         const grid = document.getElementById('emojiGrid');
         const paginationControls = document.getElementById('paginationControls');
         const totalCountEl = document.getElementById('totalCount');
         const errorBanner = document.getElementById('errorBanner');
 
+        // Активные плееры текущей страницы — уничтожаем их при листании,
+        // чтобы не копить WASM-контексты в памяти.
+        let activeCleanups = [];
+
         function showError(msg) {
             errorBanner.style.display = 'block';
             errorBanner.innerText = msg;
+        }
+
+        try {
+            ({ DotLottie } = await import('https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web/+esm'));
+        } catch (e) {
+            console.error('Не удалось загрузить dotlottie-web:', e);
+            showError('Не удалось загрузить библиотеку анимаций. Статичные картинки видны, но анимация по наведению работать не будет.');
         }
 
         function initLibrary() {
@@ -179,6 +190,10 @@
         }
 
         function renderPage(page) {
+            // Чистим плееры предыдущей страницы перед тем как выкинуть их DOM.
+            activeCleanups.forEach(fn => fn());
+            activeCleanups = [];
+
             currentPage = page;
             grid.innerHTML = '';
 
@@ -198,55 +213,62 @@
                 card.innerHTML = `
                     <div class="preview-container">
                         <img src="${pngPath}" alt="Emoji" class="emoji-img" loading="lazy">
-                        <dotlottie-player background="transparent" speed="1" loop autoplay class="emoji-lottie"></dotlottie-player>
+                        <canvas class="emoji-canvas" width="200" height="200"></canvas>
                     </div>
                     <div class="emoji-number">Эмодзи #${globalIndex}</div>
                     <a href="${animPath}" download="emoji_${globalIndex}.${item.ext}" class="download-btn">Скачать ${item.ext.toUpperCase()}</a>
                 `;
 
                 const img = card.querySelector('.emoji-img');
-                const player = card.querySelector('.emoji-lottie');
-                let loaded = false;
+                const canvas = card.querySelector('.emoji-canvas');
+                let player = null;
 
-                // Если анимация не смогла загрузиться — не оставляем пустой
-                // прозрачный квадрат, а возвращаем статичную картинку.
-                player.addEventListener('error', () => {
-                    player.classList.remove('visible');
-                    img.style.opacity = '1';
-                });
+                function createPlayer() {
+                    if (player || !DotLottie) return;
+                    player = new DotLottie({
+                        canvas,
+                        src: animPath,
+                        loop: true,
+                        autoplay: true,
+                        renderConfig: { autoResize: true },
+                    });
 
-                // Анимация загружается только при первом наведении —
-                // это ключевое отличие: страница не пытается скачать
-                // тысячи Lottie-файлов сразу при открытии.
-                card.addEventListener('mouseenter', () => {
-                    img.style.opacity = '0';
-                    player.classList.add('visible');
+                    player.addEventListener('load', () => {
+                        canvas.classList.add('visible');
+                        img.style.opacity = '0';
+                    });
 
-                    if (!loaded) {
-                        loaded = true;
-                        // .load() асинхронный: он сам скачает и распарсит
-                        // анимацию, а благодаря атрибуту autoplay плеер
-                        // запустится сам, когда данные реально будут готовы —
-                        // без гонки состояний с ручным .play().
-                        player.load(animPath).catch(e => {
-                            console.error('Не удалось загрузить анимацию:', animPath, e);
-                        });
-                    } else {
-                        // Анимация уже загружена раньше — можно играть сразу.
-                        try {
-                            player.play();
-                        } catch (e) {
-                            console.error('Ошибка воспроизведения:', e);
+                    player.addEventListener('loadError', (e) => {
+                        console.error('Ошибка загрузки анимации:', animPath, e);
+                        canvas.classList.remove('visible');
+                        img.style.opacity = '1';
+                        if (player) {
+                            player.destroy();
+                            player = null;
                         }
+                    });
+                }
+
+                card.addEventListener('mouseenter', () => {
+                    createPlayer();
+                    if (player) {
+                        try { player.play(); } catch (e) { console.error(e); }
                     }
                 });
 
                 card.addEventListener('mouseleave', () => {
-                    try {
-                        player.pause();
-                    } catch (e) {}
-                    player.classList.remove('visible');
+                    if (player) {
+                        try { player.pause(); } catch (e) {}
+                    }
+                    canvas.classList.remove('visible');
                     img.style.opacity = '1';
+                });
+
+                activeCleanups.push(() => {
+                    if (player) {
+                        try { player.destroy(); } catch (e) {}
+                        player = null;
+                    }
                 });
 
                 grid.appendChild(card);
@@ -288,11 +310,8 @@
             paginationControls.appendChild(nextBtn);
         }
 
-        if (typeof customElements !== 'undefined' && !customElements.get('dotlottie-player')) {
-            showError('Компонент dotlottie-player не зарегистрировался (не загрузился CDN-скрипт). Статичные картинки должны отображаться, но анимация по наведению работать не будет.');
-        }
-
         initLibrary();
+    })();
     </script>
 </body>
 </html>
