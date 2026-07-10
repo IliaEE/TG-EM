@@ -230,7 +230,7 @@ html_content = """<!DOCTYPE html>
         }
 
         try {
-            ({ DotLottie } = await import('https://cdn.jsdelivr.net/npm/@lottiefiles/dotlottie-web/+esm'));
+            ({ DotLottie } = await import('https://esm.sh/@lottiefiles/dotlottie-web'));
         } catch (e) {
             console.error('Не удалось загрузить dotlottie-web:', e);
             showError('Не удалось загрузить библиотеку анимаций. Статичные картинки видны, но анимация по наведению работать не будет.');
