@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Тест одной анимации</title>
+<style>
+    body { font-family: sans-serif; padding: 40px; background: #eff3f6; }
+    .box {
+        width: 160px;
+        height: 160px;
+        position: relative;
+        background: white;
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+    }
+    img, canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+    canvas { opacity: 0; }
+    canvas.visible { opacity: 1; }
+    #log {
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 13px;
+        background: #111;
+        color: #0f0;
+        padding: 15px;
+        border-radius: 8px;
+        max-width: 700px;
+        min-height: 200px;
+    }
+</style>
+</head>
+<body>
+    <h2>Наведите на квадрат ниже:</h2>
+    <div class="box" id="box">
+        <img id="img" src="Static%20Emoji%20by%20%40EmojiSaverBot%20(part%201)/CAACAgIAAxUAAWpDW_k-LXZXi9_6O3DbdCG--33LAAJINQACY0fISrytFk03DlqtPAQ/CAACAgIAAxUAAWpDW_k-LXZXi9_6O3DbdCG--33LAAJINQACY0fISrytFk03DlqtPAQ.png">
+        <canvas id="canvas" width="300" height="300"></canvas>
+    </div>
+    <div id="log">Ждём загрузки страницы...</div>
+
+    <script>
+    const logEl = document.getElementById('log');
+    function log(msg) {
+        console.log(msg);
+        logEl.textContent += '\n' + msg;
+    }
+
+    const ANIM_PATH = "Static%20Emoji%20by%20%40EmojiSaverBot%20(part%201)/CAACAgIAAxUAAWpDW_k-LXZXi9_6O3DbdCG--33LAAJINQACY0fISrytFk03DlqtPAQ/CAACAgIAAxUAAWpDW_k-LXZXi9_6O3DbdCG--33LAAJINQACY0fISrytFk03DlqtPAQ.lottie";
+
+    (async () => {
+        logEl.textContent = 'Шаг 1: пробуем импортировать библиотеку с esm.sh...';
+        let DotLottie;
+        try {
+            const mod = await import('https://esm.sh/@lottiefiles/dotlottie-web');
+            DotLottie = mod.DotLottie;
+            log('✅ Шаг 1 OK: библиотека импортирована. DotLottie = ' + typeof DotLottie);
+        } catch (e) {
+            log('❌ Шаг 1 ПРОВАЛ: не удалось импортировать библиотеку.');
+            log('Текст ошибки: ' + e.message);
+            return;
+        }
+
+        const img = document.getElementById('img');
+        const canvas = document.getElementById('canvas');
+        const box = document.getElementById('box');
+        let player = null;
+
+        log('Шаг 2: наведите мышкой на квадрат, чтобы проверить создание плеера...');
+
+        function createPlayer() {
+            if (player) return;
+            log('Шаг 3: создаём DotLottie, src = ' + ANIM_PATH);
+            try {
+                player = new DotLottie({
+                    canvas,
+                    src: ANIM_PATH,
+                    loop: true,
+                    autoplay: true,
+                });
+                log('✅ Шаг 3 OK: объект DotLottie создан.');
+            } catch (e) {
+                log('❌ Шаг 3 ПРОВАЛ: ошибка при создании DotLottie.');
+                log('Текст ошибки: ' + e.message);
+                return;
+            }
+
+            player.addEventListener('load', () => {
+                log('✅ Событие "load": анимация загружена и должна играть.');
+                canvas.classList.add('visible');
+                img.style.opacity = '0';
+            });
+
+            player.addEventListener('loadError', (e) => {
+                log('❌ Событие "loadError": анимация НЕ загрузилась.');
+                log('Детали: ' + JSON.stringify(e.detail || e));
+            });
+
+            player.addEventListener('frame', () => {
+                // сработает только если реально идёт воспроизведение
+                if (!window.__frameLogged) {
+                    window.__frameLogged = true;
+                    log('✅ Событие "frame": кадры реально рендерятся, анимация играет.');
+                }
+            });
+        }
+
+        box.addEventListener('mouseenter', () => {
+            log('--- mouseenter сработал ---');
+            createPlayer();
+            if (player) {
+                try {
+                    player.play();
+                    log('play() вызван без ошибок.');
+                } catch (e) {
+                    log('❌ Ошибка при play(): ' + e.message);
+                }
+            }
+        });
+
+        box.addEventListener('mouseleave', () => {
+            log('--- mouseleave сработал ---');
+            if (player) {
+                try { player.pause(); } catch (e) {}
+            }
+            canvas.classList.remove('visible');
+            img.style.opacity = '1';
+        });
+    })();
+    </script>
+</body>
+</html>
